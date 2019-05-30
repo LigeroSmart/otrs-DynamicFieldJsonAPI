@@ -817,14 +817,7 @@ sub PossibleValuesGet {
     my $CacheKey    = 'DynamicField::' . $FieldName;
     my $CacheObject = $Kernel::OM->Get('Kernel::System::Cache');
     my $LogObject   = $Kernel::OM->Get('Kernel::System::Log');
-
-    # check if it can find anything in the cache
-    my $Cache = $CacheObject->Get(
-        Type => $Self->{CacheType},
-        Key  => $CacheKey,
-    );
-
-    return $Cache if $Cache && %{$Cache};
+    my $TemplateGeneratorObject = $Kernel::OM->Get('Kernel::System::TemplateGenerator');
 
     # set PossibleNone attribute
     my $FieldPossibleNone;
@@ -855,8 +848,30 @@ sub PossibleValuesGet {
 
     # send data
     my %Opts;
+    my $CustomerUserID;
+    my $CustomerID;
+
+    if ($Param{LayoutObject}->{SessionSource} && $Param{LayoutObject}->{SessionSource} eq "CustomerInterface"){
+        $CustomerUserID = $Param{LayoutObject}->{UserID};
+        $CustomerID     = $Param{LayoutObject}->{CustomerID};
+    }
+    #  elsif ($Self->{SessionSource} && $Self->{SessionSource} eq "AgentInterface") {
+    #     $CustomerUserID = $Param{GetParam}->{SelectedCustomerUser};
+    #     $CustomerID     = $Param{GetParam}->{CustomerID};
+    # }
     if ( $Config->{Requestbody} ) {
-        $Opts{Data} = { Content => $Config->{Requestbody} };
+        my $Requestbody = $TemplateGeneratorObject->_Replace(
+            RichText   => 0,
+            Text       => $Config->{Requestbody},
+            Data       => {},
+            TicketData => {
+                CustomerUserID => $CustomerUserID || '',
+                CustomerID     => $CustomerID || '',
+            },
+            UserID     => 1,
+        );
+        $CacheKey.= "-" . uri_escape $Requestbody;
+        $Opts{Data} = { Content => $Requestbody };
     }
 
     my $URL = $Config->{URL};
@@ -864,7 +879,17 @@ sub PossibleValuesGet {
     if ( $Config->{HTTPMethod} ne 'GET' && $Config->{RequestParams} && keys %{ $Config->{RequestParams} } ) {
         for my $Attr ( keys %{ $Config->{RequestParams} } ) {
             my $Key   = $Attr;
-            my $Value = $Config->{RequestParams}->{$Attr};
+            my $Value = $TemplateGeneratorObject->_Replace(
+                RichText   => 0,
+                Text       => $Config->{RequestParams}->{$Attr},
+                Data       => {},
+                TicketData => {
+                    CustomerUserID => $CustomerUserID || '',
+                    CustomerID     => $CustomerID || '',
+                },
+                UserID     => 1,
+            );
+            $CacheKey.= "-" . uri_escape $Value;
             $Opts{Data}->{$Key} = $Value;
         }
     }
@@ -873,12 +898,29 @@ sub PossibleValuesGet {
 
         for my $Attr ( keys %{ $Config->{RequestParams} } ) {
             my $Key   = uri_escape $Attr;
-            my $Value = uri_escape $Config->{RequestParams}->{$Attr};
+            my $Value = uri_escape $TemplateGeneratorObject->_Replace(
+                RichText   => 0,
+                Text       => $Config->{RequestParams}->{$Attr},
+                Data       => {},
+                TicketData => {
+                    CustomerUserID => $CustomerUserID || '',
+                    CustomerID     => $CustomerID || '',
+                },
+                UserID     => 1,
+            );
+            $CacheKey.="-$Key=$Value";
             push @URLParams, "$Key=$Value";
         }
 
         $URL .= '?' . join '&', @URLParams;
     }
+    # check if it can find anything in the cache
+    my $Cache = $CacheObject->Get(
+        Type => $Self->{CacheType},
+        Key  => $CacheKey,
+    );
+
+    return $Cache if $Cache && %{$Cache};
 
     # request the API
     my $UA         = $Kernel::OM->Get('Kernel::System::WebUserAgent');
