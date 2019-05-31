@@ -855,10 +855,22 @@ sub PossibleValuesGet {
         $CustomerUserID = $Param{LayoutObject}->{UserID};
         $CustomerID     = $Param{LayoutObject}->{CustomerID};
     }
+
+    if($Param{DynamicFieldConfig}->{UserID}){
+        $CustomerUserID = $Param{DynamicFieldConfig}->{UserID};
+    }
+
+    if($Param{DynamicFieldConfig}->{CustomerID}){
+        $CustomerID = $Param{DynamicFieldConfig}->{CustomerID};
+    }
     #  elsif ($Self->{SessionSource} && $Self->{SessionSource} eq "AgentInterface") {
     #     $CustomerUserID = $Param{GetParam}->{SelectedCustomerUser};
     #     $CustomerID     = $Param{GetParam}->{CustomerID};
     # }
+    #if(!$CustomerUserID){
+    #    return;
+    #}
+    
     if ( $Config->{Requestbody} ) {
         my $Requestbody = $TemplateGeneratorObject->_Replace(
             RichText   => 0,
@@ -872,7 +884,11 @@ sub PossibleValuesGet {
         );
         $CacheKey.= "-" . uri_escape $Requestbody;
         $Opts{Data} = { Content => $Requestbody };
+
+        
     }
+
+    
 
     my $URL = $Config->{URL};
 
@@ -921,6 +937,7 @@ sub PossibleValuesGet {
     );
 
     return $Cache if $Cache && %{$Cache};
+
 
     # request the API
     my $UA         = $Kernel::OM->Get('Kernel::System::WebUserAgent');
